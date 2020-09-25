@@ -110,29 +110,40 @@ const executeSubInsertion = async variables => {
 // Request Handler
 app.post("/insertStandup", async (req, res) => {
     const { name, cron_text, channel, message } = req.body.input;
-    const { data, errors } = await executeInsertion({
+    let res1 = await executeInsertion({
         name,
         cron_text,
         channel,
         message
     });
-    if (errors) {
-        return res.status(400).json(errors[0]);
+    if (res1.errors) {
+        return res.status(400).json(res1.errors[0]);
     }
-    console.log(data);
+    console.log(res1.data);
     // success
-    const { dataCron, errorsCron } = await executeSubInsertion({
-        standup_id: data.insert_standup_one.id
+    let res2 = await executeSubInsertion({
+        standup_id: res1.data.insert_standup_one.id
     });
-    console.log("cronjob added: ", dataCron);
+    if (res2.errors) {
+        return res.status(400).json(res2.errors[0]);
+    }
+    console.log(res2.data);
     return res.json({
-        ...data.insert_standup_one
+        ...res1.data.insert_standup_one
     });
 });
 
 const HASURA_DELETE_OPERATION = ` 
-mutation deleteStandup($standup_id: String!) { String!
+mutation deleteStandup($standup_id: uuid!) { 
   delete_standup(where: {id: {_eq: $standup_id}}){
+    affected_rows
+  }
+}
+`;
+
+const HASURA_DELETE_SUBOPERATION = `  
+mutation deleteCronjob($standup_id: uuid!){ 
+  delete_cronjob(where: {standup_id: {_eq: $standup_id}}){
     affected_rows
   }
 }
@@ -146,7 +157,7 @@ const executeDeletion = async variables => {
         {
             method: "POST",
             body: JSON.stringify({
-                query: HASURA_OPERATION,
+                query: HASURA_DELETE_OPERATION,
                 variables
             }),
             headers
@@ -156,24 +167,49 @@ const executeDeletion = async variables => {
     console.log("DEBUG: ", data);
     return data;
 };
+
+const executeSubDeletion = async variables => {
+    const headers = { "x-hasura-admin-secret": "qwerty" };
+
+    const fetchResponse = await fetch(
+        "https://hopeful-squirrel-40.hasura.app/v1/graphql",
+        {
+            method: "POST",
+            body: JSON.stringify({
+                query: HASURA_DELETE_SUBOPERATION,
+                variables
+            }),
+            headers
+        }
+    );
+    const data = await fetchResponse.json();
+    console.log("DEBUG: ", data);
+    return data;
+};
+
+
+
 // Request Handler
 app.post("/deleteStandup", async (req, res) => {
-    console.log("HERE", req.body.input);
     const { standup_id } = req.body.input;
-    console.log(standup_id);
-    const { data, errors } = await executeDeletion({ standup_id: uuidv4.fromString(standup_id) });
-    console.log(data);
-    if (errors) {
-        return res.status(400).json(errors[0]);
+
+    const res2 = await executeSubDeletion(
+        { standup_id }
+    );
+    console.log("cronjob deleted: ", res2.data);
+    if (res2.errors) {
+        return res.status(400).json(res2.errors[0]);
     }
-    console.log(data);
+    const res1 = await executeDeletion({ standup_id });
+    console.log('datastandup', res1.data, res1.errors);
+    if (res1.errors) {
+        return res.status(400).json(res1.errors[0]);
+    }
+    console.log(res1.data);
     // success
-    // const {dataCron, errorsCron} = await executeSubInsertion (
-    //   { standup_id: data.insert_standup_one.id}
-    // );
-    // console.log("cronjob added: ", dataCron);
+
     return res.json({
-        ...data
+        ...res1.data.delete_standup
     });
 });
 
