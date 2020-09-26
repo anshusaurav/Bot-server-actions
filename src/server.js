@@ -1,4 +1,4 @@
-const { createServer } = require('http');
+const { createServer } = require("http");
 const express = require("express");
 const bodyParser = require("body-parser");
 const CronJob = require("cron").CronJob;
@@ -7,7 +7,8 @@ const { WebClient } = require("@slack/web-api");
 const token = process.env.SLACK_BOT_TOKEN;
 const web = new WebClient(token);
 const { v4: uuidv4 } = require("uuid");
-const slackEvents = require('./../slackEvents');
+const slackEvents = require("./slackEvents");
+const blocks = require("./slackBlocks");
 const crons = {};
 const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
@@ -21,12 +22,12 @@ const timeStamp = () => {
 };
 
 const app = express();
-app.use('/slack/events', slackEvents.requestListener());
+app.use("/slack/events", slackEvents.requestListener());
 app.use(bodyParser.json());
 
 const server = createServer(app);
 
-slackEvents.on('message', event => {
+slackEvents.on("message", event => {
   console.log(event);
 });
 
@@ -109,20 +110,23 @@ app.post("/insertStandup", async (req, res) => {
     () => {
       const uuid = uuidv4();
       const stamp = timeStamp();
-      console.log(`Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`);
+      console.log(
+        `Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`
+      );
       web.conversations.members({ channel }).then(response => {
         let requests = response.members.map(member =>
           web.chat.postMessage({
-            text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
-            channel: member,
-            as_user: true
+            // text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
+            blocks: blocks(),
+            channel: member
+
+            // as_user: true
           })
         );
         Promise.all(requests).then(res =>
           res.forEach(resp => console.log(resp))
         );
       });
-
     },
     null,
     true
@@ -258,13 +262,16 @@ app.post("/updateStandup", async (req, res) => {
     () => {
       const uuid = uuidv4();
       const stamp = timeStamp();
-      console.log(`Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`);
+      console.log(
+        `Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`
+      );
       web.conversations.members({ channel }).then(response => {
         let requests = response.members.map(member =>
           web.chat.postMessage({
-            text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
-            channel: member,
-            as_user: true
+            // text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
+            blocks: blocks(),
+            channel: member
+            // as_user: true
           })
         );
         Promise.all(requests).then(res =>
@@ -283,4 +290,3 @@ app.post("/updateStandup", async (req, res) => {
 server.listen(PORT, () => {
   console.log("Server started");
 });
-
