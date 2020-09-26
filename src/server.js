@@ -2,9 +2,14 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const CronJob = require("cron").CronJob;
 const fetch = require("node-fetch");
+const { WebClient } = require("@slack/web-api");
+const token = process.env.SLACK_BOT_TOKEN;
+const web = new WebClient(token);
 const { v4: uuidv4 } = require("uuid");
 const crons = {};
-
+const port = process.env.PORT || 3000;
+// C01B8HWFN49 bot-test false 7
+// C01C1690AU8 bot-test2 false 1
 const timeStamp = () => {
   var date = new Date();
   var seconds = ("0" + date.getSeconds()).slice(-2);
@@ -14,6 +19,7 @@ const timeStamp = () => {
 };
 
 const app = express();
+
 app.use(bodyParser.json());
 const PORT = process.env.PORT || 3000;
 
@@ -96,16 +102,20 @@ app.post("/insertStandup", async (req, res) => {
     () => {
       const uuid = uuidv4();
       const stamp = timeStamp();
-      console.log(
-        "Time: " + stamp,
-        "Standup: {name: " +
-        name +
-        ", channel: " +
-        channel +
-        ", message: " +
-        message +
-        "}"
-      );
+      console.log(`Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`);
+      web.conversations.members({ channel }).then(response => {
+        let requests = response.members.map(member =>
+          web.chat.postMessage({
+            text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
+            channel: member,
+            as_user: true
+          })
+        );
+        Promise.all(requests).then(res =>
+          res.forEach(resp => console.log(resp))
+        );
+      });
+
     },
     null,
     true
@@ -146,9 +156,12 @@ app.post("/deleteStandup", async (req, res) => {
     { standup_id },
     HASURA_CRONQUERY_OPERATION
   );
+  // console.log(res3);
   if (res3.errors) {
     return res.status(400).json(res3.errors[0]);
   }
+
+  // console.log(res3.data);
   if (res3.data.cronjob.length > 0) {
     crons[res3.data.cronjob[0].id].stop();
     console.log("Cronjob removed with id:" + res3.data.cronjob[0].id);
@@ -173,6 +186,94 @@ app.post("/deleteStandup", async (req, res) => {
   });
 });
 
+const HASURA_UPDATE_OPERATION = `
+mutation updateStandup($standup_id:uuid!, $channel: String!, $cron_text: String!, $message: String!, $name: String!  ) {
+  update_standup_by_pk(pk_columns: {id: $standup_id}, _set: {channel: $channel, cron_text: $cron_text, message: $message, name: $name}) {
+    id
+    channel
+    cron_text
+    message
+    name
+    updated_at
+  }
+}
+`;
+// Request Handler
+app.post("/updateStandup", async (req, res) => {
+  const { standup_id, channel, cron_text, message, name } = req.body.input;
+
+  const res3 = await executeOperation(
+    { standup_id, channel, cron_text, message, name },
+    HASURA_UPDATE_OPERATION
+  );
+  // console.log(res3);
+  if (res3.errors) {
+    return res.status(400).json(res3.errors[0]);
+  }
+
+  const res1 = await executeOperation(
+    { standup_id },
+    HASURA_CRONQUERY_OPERATION
+  );
+  // console.log(res1);
+  if (res1.errors) {
+    return res.status(400).json(res1.errors[0]);
+  }
+
+  console.log(res1.data);
+  if (res1.data.cronjob.length > 0) {
+    crons[res1.data.cronjob[0].id].stop();
+    console.log("Cronjob removed with id:" + res1.data.cronjob[0].id);
+  }
+  const res2 = await executeOperation(
+    { standup_id },
+    HASURA_DELETE_SUBOPERATION
+  );
+
+  if (res2.errors) {
+    return res.status(400).json(res2.errors[0]);
+  }
+
+  let res4 = await executeOperation(
+    {
+      standup_id
+    },
+    HASURA_INSERT_SUBOPERATION
+  );
+
+  if (res4.errors) {
+    return res.status(400).json(res4.errors[0]);
+  }
+  console.log("Cronjob added with id:" + res4.data.insert_cronjob_one.id);
+  // success
+  crons[res4.data.insert_cronjob_one.id] = new CronJob(
+    cron_text,
+    () => {
+      const uuid = uuidv4();
+      const stamp = timeStamp();
+      console.log(`Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`);
+      web.conversations.members({ channel }).then(response => {
+        let requests = response.members.map(member =>
+          web.chat.postMessage({
+            text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
+            channel: member,
+            as_user: true
+          })
+        );
+        Promise.all(requests).then(res =>
+          res.forEach(resp => console.log(resp))
+        );
+      });
+    },
+    null,
+    true
+  );
+
+  return res.json({
+    ...res3.data.update_standup_by_pk
+  });
+});
 app.listen(PORT, () => {
   console.log("Server started");
 });
+
