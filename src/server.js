@@ -1,3 +1,4 @@
+const { createServer } = require('http');
 const express = require("express");
 const bodyParser = require("body-parser");
 const CronJob = require("cron").CronJob;
@@ -6,8 +7,9 @@ const { WebClient } = require("@slack/web-api");
 const token = process.env.SLACK_BOT_TOKEN;
 const web = new WebClient(token);
 const { v4: uuidv4 } = require("uuid");
+const slackEvents = require('./../slackEvents');
 const crons = {};
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
 // C01C1690AU8 bot-test2 false 1
 const timeStamp = () => {
@@ -19,9 +21,14 @@ const timeStamp = () => {
 };
 
 const app = express();
-
+app.use('/slack/events', slackEvents.requestListener());
 app.use(bodyParser.json());
-const PORT = process.env.PORT || 3000;
+
+const server = createServer(app);
+
+slackEvents.on('message', event => {
+  console.log(event);
+});
 
 const HASURA_INSERT_OPERATION = `
 mutation insertStandup($name: String!, $cron_text: String!, $channel: String!, $message: String! ) {
@@ -273,7 +280,7 @@ app.post("/updateStandup", async (req, res) => {
     ...res3.data.update_standup_by_pk
   });
 });
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log("Server started");
 });
 
