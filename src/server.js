@@ -7,8 +7,10 @@ const { WebClient } = require("@slack/web-api");
 const token = process.env.SLACK_BOT_TOKEN;
 const web = new WebClient(token);
 const { v4: uuidv4 } = require("uuid");
-const slackEvents = require("./slackEvents");
+const { createMessageAdapter } = require('@slack/interactive-messages');
+const { createEventAdapter } = require('@slack/events-api');
 const blocks = require("./slackBlocks");
+
 const crons = {};
 const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
@@ -22,14 +24,24 @@ const timeStamp = () => {
 };
 
 const app = express();
-app.use("/slack/events", slackEvents.requestListener());
+const slackEvents = createEventAdapter(process.env.SLACK_SIGNING_SECRET);
+const slackInteractions = createMessageAdapter(process.env.SLACK_SIGNING_SECRET);
+
+app.use("/slack/events", slackEvents.expressMiddleware());
+app.use("/slack/actions", slackInteractions.expressMiddleware());
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-const server = createServer(app);
+
+slackInteractions.action({ actionId: 'open_modal_button' }, async (payload) => {
+  console.log('HERE');
+  console.log(payload);
+})
 
 slackEvents.on("message", event => {
   console.log(event);
 });
+
 
 const HASURA_INSERT_OPERATION = `
 mutation insertStandup($name: String!, $cron_text: String!, $channel: String!, $message: String! ) {
@@ -117,7 +129,7 @@ app.post("/insertStandup", async (req, res) => {
         let requests = response.members.map(member =>
           web.chat.postMessage({
             // text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
-            blocks: blocks(),
+            blocks: blocks({ name, message }),
             channel: member
 
             // as_user: true
@@ -269,7 +281,7 @@ app.post("/updateStandup", async (req, res) => {
         let requests = response.members.map(member =>
           web.chat.postMessage({
             // text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
-            blocks: blocks(),
+            blocks: blocks({ name, message }),
             channel: member
             // as_user: true
           })
@@ -287,6 +299,7 @@ app.post("/updateStandup", async (req, res) => {
     ...res3.data.update_standup_by_pk
   });
 });
-server.listen(PORT, () => {
-  console.log("Server started");
+
+app.listen(PORT, function () {
+  console.log('Server is listening on port ' + PORT);
 });
