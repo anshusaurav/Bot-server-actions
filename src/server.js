@@ -8,7 +8,7 @@ const token = process.env.SLACK_BOT_TOKEN;
 const web = new WebClient(token);
 const { v4: uuidv4 } = require("uuid");
 const { createMessageAdapter } = require('@slack/interactive-messages');
-const { createEventAdapter } = require('@slack/events-api');
+const {createEventAdapter} = require('@slack/events-api');
 const blocks = require("./slackBlocks");
 
 const crons = {};
@@ -27,20 +27,89 @@ const app = express();
 const slackEvents = createEventAdapter(process.env.SLACK_SIGNING_SECRET);
 const slackInteractions = createMessageAdapter(process.env.SLACK_SIGNING_SECRET);
 
-app.use("/slack/events", slackEvents.expressMiddleware());
+app.use("/slack/events",  slackEvents.expressMiddleware());
 app.use("/slack/actions", slackInteractions.expressMiddleware());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
+const HASURA_FETCH_STANDUP_OPERATION = `query getStandup($standup_id: uuid!){
+  standup(where: {id: {_eq: $standup_id}}){
+    id
+    name
+    message
+  }
+}
 
-slackInteractions.action({ actionId: 'open_modal_button' }, async (payload) => {
+`
+
+const modalBlock = (context) => ({
+  "type": "modal",
+  "callback_id": "example_modal_submit",
+  "title": {
+    "type": "plain_text",
+    "text": "My App",
+    "emoji": true
+  },
+  "submit": {
+    "type": "plain_text",
+    "text": "Submit",
+    "emoji": true
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Cancel",
+    "emoji": true
+  },
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "This is a modal with a plain text section block.",
+        "emoji": true
+      }
+    },
+    {
+      "type": "input",
+      "block_id": "example_input_block",
+      "element": {
+        "action_id": "example_input_element",
+        "type": "plain_text_input"
+      },
+      "label": {
+        "type": "plain_text",
+        "text": "Label",
+        "emoji": true
+      }
+    }
+  ]
+});
+
+slackInteractions.action({actionId: 'open_modal_button'}, async(payload) =>{
   console.log('HERE');
-  console.log(payload);
+  console.log(payload.actions[0].block_id);
+  try {
+    
+    await web.views.open({
+        trigger_id: payload.trigger_id,
+        view: modalBlock()
+      }
+    )
+  } catch (e) {
+    console.log('Error: ', e)
+  }
+  return {
+    text: 'Processing...',
+  }
 })
 
 slackEvents.on("message", event => {
-  console.log(event);
+  // console.log(event);
 });
+
+
+
+
 
 
 const HASURA_INSERT_OPERATION = `
@@ -129,14 +198,14 @@ app.post("/insertStandup", async (req, res) => {
         let requests = response.members.map(member =>
           web.chat.postMessage({
             // text: `Time: ${stamp}||Standup Name: ${name} ||Message: ${message}`,
-            blocks: blocks({ name, message }),
+            blocks: blocks({ name, message, member, standup: res1.data.insert_standup_one.id, standup_run: uuid }),
             channel: member
 
             // as_user: true
           })
         );
         Promise.all(requests).then(res =>
-          res.forEach(resp => console.log(resp))
+          res.forEach(resp => console.log('ya'))
         );
       });
     },
@@ -287,7 +356,7 @@ app.post("/updateStandup", async (req, res) => {
           })
         );
         Promise.all(requests).then(res =>
-          res.forEach(resp => console.log(resp))
+          res.forEach(resp => console.log('ya'))
         );
       });
     },
