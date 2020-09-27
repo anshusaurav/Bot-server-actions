@@ -51,23 +51,44 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
   console.log(standup_id, standup_run_id);
   try {
     let res1 = await executeOperation(
-      {
-        standup_id
-      },
+      { standup_id },
       HASURA_FETCH_STANDUP_OPERATION
     );
     const { name, message } = res1.data.standup[0];
-
+    console.log(name, message);
+    console.log(payload.trigger_id);
     let res2 = await web.views.open({
       trigger_id: payload.trigger_id,
-      view: modalBlock({ standup_id, name, message })
+      view: modalBlock({
+        standup: standup_id,
+        name,
+        message,
+        standup_run: standup_run_id
+      })
     });
+    console.log('aihihs');
   } catch (e) {
     console.log("Error: ", e);
   }
   return {
     text: "Processing..."
   };
+});
+
+slackInteractions.viewSubmission('example_modal_submit', async (payload) => {
+  const blockData = payload.view.state;
+  // const nameInput = blockData.values.example_input_block.example_input_element.value;
+  // if (nameInput.length < 2) {
+  //   return {
+  //     "response_action": "errors",
+  //     "errors": {
+  //       "example_input_block": "The input must have more than one letter."
+  //     }
+  //   }
+  // }
+  // return {
+  //   response_action: "clear"
+  // }
 });
 
 slackEvents.on("message", event => {
@@ -143,8 +164,6 @@ app.post("/insertStandup", async (req, res) => {
                 standup_run: insertRes.data.insert_standup_run_one.id
               }),
               channel: member
-
-              // as_user: true
             })
           );
           Promise.all(requests).then(res =>
@@ -168,7 +187,7 @@ app.post("/deleteStandup", async (req, res) => {
   const res4 = await executeOperation(
     { standup_id },
     HASURA_DELETE_STANDUPRUN_OPERATION
-  );//HASURA_DELETE_STANDUPRUN_OPERATION
+  ); //HASURA_DELETE_STANDUPRUN_OPERATION
   if (res4.errors) {
     return res.status(400).json(res4.errors[0]);
   }
