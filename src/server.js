@@ -28,7 +28,8 @@ const crons = {};
 const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
 // C01C1690AU8 bot-test2 false 1
-// console.log(fetch())
+
+//UTWLKG02K
 const timeStamp = () => {
   var date = new Date();
   var seconds = ("0" + date.getSeconds()).slice(-2);
@@ -49,11 +50,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
-  // console.log(payload);
   let arr = payload.actions[0].block_id.split("||");
   let slackuser_id = payload.user.id;
   const [standup_id, standup_run_id] = arr;
-  // console.log(standup_id, standup_run_id);
+
   try {
     let res1 = await executeOperation(
       { standup_id },
@@ -69,12 +69,11 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
       };
     }
     const { name, message } = res1.data.standup[0];
-
-    //     console.log('|',standup_id, standup_run_id, slackuser_id);
     let res2 = await executeOperation(
       { standup_id, standup_run_id, slackuser_id },
       HASURA_FIND_RESPONSE_OPERATION
     );
+
     if (res2.errors) {
       return {
         response_action: "errors",
@@ -84,13 +83,15 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
         }
       };
     }
-    // console.log(res2.data.response);
+
     let response_body = "",
       response_id = "";
+
     if (res2.data.response.length) {
       response_body = res2.data.response[0].body;
       response_id = res2.data.response[0].id;
     }
+
     let res3 = await web.views.open({
       trigger_id: payload.trigger_id,
       view: modalBlock({
@@ -112,50 +113,42 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
 
 slackInteractions.viewSubmission("answer_modal_submit", async payload => {
   const blockData = payload.view.state.values;
-
-  console.log(payload);
-  // console.log("HEre");
   const keyArr = Object.keys(blockData);
   let arr = keyArr[0].split("||");
-  console.log("arr", arr);
   const [standup_id, standup_run_id, response_id] = arr;
-
   const body = blockData[keyArr[0]].answer_input_element.value;
   let slackuser_id = payload.user.id;
-  // console.log(standup_id, standup_run_id, payload.user.id, body);
-  try {
 
-    console.log('response present')
+  try {
+    console.log("response present");
     if (response_id) {
       let res1 = await executeOperation(
         { standup_id, standup_run_id, slackuser_id, body },
         HASURA_UPDATE_RESPONSE_OPERATION
       );
-      console.log(res1);
       if (res1.errors) {
         return {
           response_action: "errors",
           errors: {
-            [keyArr[0]]: "The input must have have some answer for the question."
+            [keyArr[0]]:
+              "The input must have have some answer for the question."
           }
         };
       }
       return {
         response_action: "clear"
       };
-    }
-    else {
-      console.log('response absent')
+    } else {
       let res2 = await executeOperation(
         { standup_id, standup_run_id, slackuser_id, body },
         HASRUA_INSERT_RESPONSE_OPERATION
       );
-      // console.log(res1);
       if (res2.errors) {
         return {
           response_action: "errors",
           errors: {
-            [keyArr[0]]: "The input must have have some answer for the question."
+            [keyArr[0]]:
+              "The input must have have some answer for the question."
           }
         };
       }
@@ -163,8 +156,6 @@ slackInteractions.viewSubmission("answer_modal_submit", async payload => {
         response_action: "clear"
       };
     }
-
-    // console.log(payload)
   } catch (e) {
     console.log("Error: ", e);
   }
@@ -198,9 +189,16 @@ const executeOperation = async (variables, operation) => {
 };
 // Request Handler
 app.post("/insertStandup", async (req, res) => {
-  const { name, cron_text, channel, message } = req.body.input;
+  const {
+    creator_slack_id,
+    name,
+    cron_text,
+    channel,
+    message
+  } = req.body.input;
   let res1 = await executeOperation(
     {
+      creator_slack_id,
       name,
       cron_text,
       channel,
@@ -260,7 +258,8 @@ app.post("/insertStandup", async (req, res) => {
       });
     },
     null,
-    true
+    true,
+    "Asia/Kolkata"
   );
   return res.json({
     ...res1.data.insert_standup_one
@@ -274,7 +273,7 @@ app.post("/deleteStandup", async (req, res) => {
   const res4 = await executeOperation(
     { standup_id },
     HASURA_DELETE_STANDUPRUN_OPERATION
-  ); //HASURA_DELETE_STANDUPRUN_OPERATION
+  );
   if (res4.errors) {
     return res.status(400).json(res4.errors[0]);
   }
@@ -282,12 +281,11 @@ app.post("/deleteStandup", async (req, res) => {
     { standup_id },
     HASURA_CRONQUERY_OPERATION
   );
-  // console.log(res3);
+
   if (res3.errors) {
     return res.status(400).json(res3.errors[0]);
   }
 
-  // console.log(res3.data);
   if (res3.data.cronjob.length > 0) {
     crons[res3.data.cronjob[0].id].stop();
     console.log("Cronjob removed with id:" + res3.data.cronjob[0].id);
@@ -384,7 +382,8 @@ app.post("/updateStandup", async (req, res) => {
       );
     },
     null,
-    true
+    true,
+    "Asia/Kolkata"
   );
 
   return res.json({
