@@ -26,6 +26,7 @@ const crons = {};
 const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
 // C01C1690AU8 bot-test2 false 1
+// console.log(fetch())
 const timeStamp = () => {
   var date = new Date();
   var seconds = ("0" + date.getSeconds()).slice(-2);
@@ -46,8 +47,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
-  // console.log(payload);
+  console.log(payload);
   let arr = payload.actions[0].block_id.split("||");
+  let slackuser_id = payload.user.id;
   const [standup_id, standup_run_id] = arr;
   // console.log(standup_id, standup_run_id);
   try {
@@ -97,8 +99,7 @@ slackInteractions.viewSubmission("answer_modal_submit", async payload => {
       return {
         response_action: "errors",
         errors: {
-          [keyArr[0]]:
-            "The input must have have some answer for the question."
+          [keyArr[0]]: "The input must have have some answer for the question."
         }
       };
     }
@@ -190,17 +191,22 @@ app.post("/insertStandup", async (req, res) => {
       ).then(insertRes => {
         web.conversations.members({ channel }).then(response => {
           let requests = response.members.map(member =>
-            web.chat.postMessage({
-              blocks: blocks({
-                name,
-                message,
-                member,
-                standup: res1.data.insert_standup_one.id,
-                standup_run: insertRes.data.insert_standup_run_one.id
-              }),
-              channel: member
+            web.users.info({ user: member }).then(userRes => {
+              // console.log(userRes);
+              web.chat.postMessage({
+                blocks: blocks({
+                  name,
+                  message,
+                  username: userRes.user.real_name,
+                  member,
+                  standup: res1.data.insert_standup_one.id,
+                  standup_run: insertRes.data.insert_standup_run_one.id
+                }),
+                channel: member
+              });
             })
           );
+
           Promise.all(requests).then(res =>
             res.forEach(resp => console.log("ya"))
           );

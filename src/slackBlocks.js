@@ -1,4 +1,19 @@
 const blocks = context => {
+  const greetings = [
+    "Bonjour",
+    "Salut",
+    "Al Salaam aliykhum",
+    "Namaste",
+    "What's up",
+    "Hello",
+    "Hey",
+    "Hola",
+    "Hi",
+    "Ahoy",
+    "Salaam",
+    "Namaskar",
+    "Shalom"
+  ];
   return [
     {
       type: "divider"
@@ -7,11 +22,10 @@ const blocks = context => {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `Hey :wave: another standup time \n*${context.name}* \n ${context.message}`
+        text: `${greetings[Math.floor(Math.random() * greetings.length)]
+          } :wave: *${context.username}*! another standup time \n*${context.name
+          }* \n ${context.message}`
       }
-    },
-    {
-      type: "divider"
     },
     {
       type: "actions",
@@ -46,44 +60,48 @@ const blocks = context => {
 };
 
 const modalBlock = context => ({
-  type: "modal",
-  callback_id: "answer_modal_submit",
-  title: {
-    type: "plain_text",
-    text: `${context.name}`,
-    emoji: true
+  "type": "modal",
+  "callback_id": "answer_modal_submit",
+  "title": {
+    "type": "plain_text",
+    "text": `${context.name}`,
+    "emoji": true
   },
-  submit: {
-    type: "plain_text",
-    text: "Submit",
-    emoji: true
+  "submit": {
+    "type": "plain_text",
+    "text": "Submit",
+    "emoji": true
   },
-  close: {
-    type: "plain_text",
-    text: "Cancel",
-    emoji: true
+  "close": {
+    "type": "plain_text",
+    "text": "Cancel",
+    "emoji": true
   },
-  blocks: [
+  "blocks": [
     {
-      type: "section",
-      text: {
-        type: "plain_text",
-        text: `${context.message}`,
-        emoji: true
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": `${context.message}`,
+        "emoji": true
       }
     },
     {
-      type: "input",
-      block_id: `${context.standup}||${context.standup_run}`,
-      element: {
-        action_id: "answer_input_element",
-        type: "plain_text_input"
-
+      "type": "input",
+      "block_id": `${context.standup}||${context.standup_run}`,
+      "element": {
+        "action_id": "answer_input_element",
+        "type": "plain_text_input",
+        "multiline": true,
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Please "
+        }
       },
-      label: {
-        type: "plain_text",
-        text: "Answer here",
-        emoji: true
+      "label": {
+        "type": "plain_text",
+        "text": "Answer here",
+        "emoji": true
       }
     }
   ]
