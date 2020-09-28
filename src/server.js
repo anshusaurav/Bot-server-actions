@@ -19,7 +19,8 @@ const {
   HASURA_CRONQUERY_OPERATION,
   HASURA_UPDATE_OPERATION,
   HASURA_INSERT_STANDUPRUN_OPERATION,
-  HASURA_DELETE_STANDUPRUN_OPERATION
+  HASURA_DELETE_STANDUPRUN_OPERATION,
+  HASRUA_INSERT_RESPONSE_OPERATION
 } = require("./queries");
 const crons = {};
 const PORT = process.env.PORT || 3000;
@@ -45,18 +46,17 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
-  console.log(payload.actions[0].block_id);
+  // console.log(payload);
   let arr = payload.actions[0].block_id.split("||");
   const [standup_id, standup_run_id] = arr;
-  console.log(standup_id, standup_run_id);
+  // console.log(standup_id, standup_run_id);
   try {
     let res1 = await executeOperation(
       { standup_id },
       HASURA_FETCH_STANDUP_OPERATION
     );
     const { name, message } = res1.data.standup[0];
-    console.log(name, message);
-    console.log(payload.trigger_id);
+    // console.log(payload)
     let res2 = await web.views.open({
       trigger_id: payload.trigger_id,
       view: modalBlock({
@@ -66,7 +66,6 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
         standup_run: standup_run_id
       })
     });
-    console.log('aihihs');
   } catch (e) {
     console.log("Error: ", e);
   }
@@ -75,8 +74,44 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
   };
 });
 
-slackInteractions.viewSubmission('example_modal_submit', async (payload) => {
-  const blockData = payload.view.state;
+slackInteractions.viewSubmission("answer_modal_submit", async payload => {
+  const blockData = payload.view.state.values;
+
+  // console.log(payload.view.state.values, payload.user.id);
+  console.log("HEre");
+  const keyArr = Object.keys(blockData);
+  let arr = keyArr[0].split("||");
+  console.log(arr);
+  const [standup_id, standup_run_id] = arr;
+
+  const body = blockData[keyArr[0]].answer_input_element.value;
+  let slackuser_id = payload.user.id;
+  console.log(standup_id, standup_run_id, payload.user.id, body);
+  try {
+    let res1 = await executeOperation(
+      { standup_id, standup_run_id, slackuser_id, body },
+      HASRUA_INSERT_RESPONSE_OPERATION
+    );
+    console.log(res1);
+    if (res1.errors) {
+      return {
+        response_action: "errors",
+        errors: {
+          [keyArr[0]]:
+            "The input must have have some answer for the question."
+        }
+      };
+    }
+    return {
+      response_action: "clear"
+    };
+    // console.log(payload)
+  } catch (e) {
+    console.log("Error: ", e);
+  }
+  return {
+    text: "Processing..."
+  };
   // const nameInput = blockData.values.example_input_block.example_input_element.value;
   // if (nameInput.length < 2) {
   //   return {

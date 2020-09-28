@@ -47,7 +47,7 @@ const blocks = context => {
 
 const modalBlock = context => ({
   type: "modal",
-  callback_id: "example_modal_submit",
+  callback_id: "answer_modal_submit",
   title: {
     type: "plain_text",
     text: `${context.name}`,
@@ -74,10 +74,11 @@ const modalBlock = context => ({
     },
     {
       type: "input",
-      block_id: "example_input_block",
+      block_id: `${context.standup}||${context.standup_run}`,
       element: {
-        action_id: "example_input_element",
+        action_id: "answer_input_element",
         type: "plain_text_input"
+
       },
       label: {
         type: "plain_text",

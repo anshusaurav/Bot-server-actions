@@ -89,6 +89,19 @@ delete_standup_run(where: {standup_id: {_eq: $standup_id}}){
 }
 `;
 
+const HASRUA_INSERT_RESPONSE_OPERATION = `
+mutation insertResponse($standup_id: uuid!, $standup_run_id: uuid!, $slackuser_id: String!, $body: String! ) {
+insert_response_one(object: {standup_id: $standup_id, standup_run_id: $standup_run_id, slackuser_id: $slackuser_id, body: $body}){
+  id,
+  standup_id
+  standup_run_id
+  slackuser_id
+  body
+  created_at
+  updated_at
+}
+}
+`;
 module.exports = {
   HASURA_FETCH_STANDUP_OPERATION,
   HASURA_INSERT_OPERATION,
@@ -98,5 +111,6 @@ module.exports = {
   HASURA_CRONQUERY_OPERATION,
   HASURA_UPDATE_OPERATION,
   HASURA_INSERT_STANDUPRUN_OPERATION,
-  HASURA_DELETE_STANDUPRUN_OPERATION
+  HASURA_DELETE_STANDUPRUN_OPERATION,
+  HASRUA_INSERT_RESPONSE_OPERATION
 };
