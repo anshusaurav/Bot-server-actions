@@ -20,7 +20,9 @@ const {
   HASURA_UPDATE_OPERATION,
   HASURA_INSERT_STANDUPRUN_OPERATION,
   HASURA_DELETE_STANDUPRUN_OPERATION,
-  HASRUA_INSERT_RESPONSE_OPERATION
+  HASRUA_INSERT_RESPONSE_OPERATION,
+  HASURA_FIND_RESPONSE_OPERATION,
+  HASURA_UPDATE_RESPONSE_OPERATION
 } = require("./queries");
 const crons = {};
 const PORT = process.env.PORT || 3000;
@@ -47,7 +49,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
-  console.log(payload);
+  // console.log(payload);
   let arr = payload.actions[0].block_id.split("||");
   let slackuser_id = payload.user.id;
   const [standup_id, standup_run_id] = arr;
@@ -57,15 +59,47 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
       { standup_id },
       HASURA_FETCH_STANDUP_OPERATION
     );
+    if (res1.errors) {
+      return {
+        response_action: "errors",
+        errors: {
+          [payload.actions[0].block_id]:
+            "I can't seem to find this standup in our Database."
+        }
+      };
+    }
     const { name, message } = res1.data.standup[0];
-    // console.log(payload)
-    let res2 = await web.views.open({
+
+    //     console.log('|',standup_id, standup_run_id, slackuser_id);
+    let res2 = await executeOperation(
+      { standup_id, standup_run_id, slackuser_id },
+      HASURA_FIND_RESPONSE_OPERATION
+    );
+    if (res2.errors) {
+      return {
+        response_action: "errors",
+        errors: {
+          [payload.actions[0].block_id]:
+            "I can't seem to find this response in our Database."
+        }
+      };
+    }
+    // console.log(res2.data.response);
+    let response_body = "",
+      response_id = "";
+    if (res2.data.response.length) {
+      response_body = res2.data.response[0].body;
+      response_id = res2.data.response[0].id;
+    }
+    let res3 = await web.views.open({
       trigger_id: payload.trigger_id,
       view: modalBlock({
         standup: standup_id,
         name,
         message,
-        standup_run: standup_run_id
+        standup_run: standup_run_id,
+        response_body,
+        response: response_id
       })
     });
   } catch (e) {
@@ -79,33 +113,57 @@ slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
 slackInteractions.viewSubmission("answer_modal_submit", async payload => {
   const blockData = payload.view.state.values;
 
-  // console.log(payload.view.state.values, payload.user.id);
-  console.log("HEre");
+  console.log(payload);
+  // console.log("HEre");
   const keyArr = Object.keys(blockData);
   let arr = keyArr[0].split("||");
-  console.log(arr);
-  const [standup_id, standup_run_id] = arr;
+  console.log("arr", arr);
+  const [standup_id, standup_run_id, response_id] = arr;
 
   const body = blockData[keyArr[0]].answer_input_element.value;
   let slackuser_id = payload.user.id;
-  console.log(standup_id, standup_run_id, payload.user.id, body);
+  // console.log(standup_id, standup_run_id, payload.user.id, body);
   try {
-    let res1 = await executeOperation(
-      { standup_id, standup_run_id, slackuser_id, body },
-      HASRUA_INSERT_RESPONSE_OPERATION
-    );
-    console.log(res1);
-    if (res1.errors) {
+
+    console.log('response present')
+    if (response_id) {
+      let res1 = await executeOperation(
+        { standup_id, standup_run_id, slackuser_id, body },
+        HASURA_UPDATE_RESPONSE_OPERATION
+      );
+      console.log(res1);
+      if (res1.errors) {
+        return {
+          response_action: "errors",
+          errors: {
+            [keyArr[0]]: "The input must have have some answer for the question."
+          }
+        };
+      }
       return {
-        response_action: "errors",
-        errors: {
-          [keyArr[0]]: "The input must have have some answer for the question."
-        }
+        response_action: "clear"
       };
     }
-    return {
-      response_action: "clear"
-    };
+    else {
+      console.log('response absent')
+      let res2 = await executeOperation(
+        { standup_id, standup_run_id, slackuser_id, body },
+        HASRUA_INSERT_RESPONSE_OPERATION
+      );
+      // console.log(res1);
+      if (res2.errors) {
+        return {
+          response_action: "errors",
+          errors: {
+            [keyArr[0]]: "The input must have have some answer for the question."
+          }
+        };
+      }
+      return {
+        response_action: "clear"
+      };
+    }
+
     // console.log(payload)
   } catch (e) {
     console.log("Error: ", e);
@@ -113,18 +171,6 @@ slackInteractions.viewSubmission("answer_modal_submit", async payload => {
   return {
     text: "Processing..."
   };
-  // const nameInput = blockData.values.example_input_block.example_input_element.value;
-  // if (nameInput.length < 2) {
-  //   return {
-  //     "response_action": "errors",
-  //     "errors": {
-  //       "example_input_block": "The input must have more than one letter."
-  //     }
-  //   }
-  // }
-  // return {
-  //   response_action: "clear"
-  // }
 });
 
 slackEvents.on("message", event => {

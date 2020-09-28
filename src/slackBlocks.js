@@ -16,45 +16,45 @@ const blocks = context => {
   ];
   return [
     {
-      type: "divider"
+      "type": "divider"
     },
     {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `${greetings[Math.floor(Math.random() * greetings.length)]
-          } :wave: *${context.username}*! another standup time \n*${context.name
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": `${greetings[Math.floor(Math.random() * greetings.length)]
+          }!! :wave: *${context.username}*! another standup time \n*${context.name
           }* \n ${context.message}`
       }
     },
     {
-      type: "actions",
-      block_id: `${context.standup}||${context.standup_run}`,
-      elements: [
+      "type": "actions",
+      "block_id": `${context.standup}||${context.standup_run}`,
+      "elements": [
         {
-          type: "button",
-          action_id: "open_modal_button",
-          text: {
-            type: "plain_text",
-            text: "Answer Questions",
-            emoji: true
+          "type": "button",
+          "action_id": "open_modal_button",
+          "text": {
+            "type": "plain_text",
+            "text": "Answer Questions",
+            "emoji": true
           },
-          style: "primary",
-          value: "click_me_123"
+          "style": "primary",
+          "value": "click_me_123"
         },
         {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: "Dismiss",
-            emoji: true
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Dismiss",
+            "emoji": true
           },
-          value: "click_me_123"
+          "value": "click_me_123"
         }
       ]
     },
     {
-      type: "divider"
+      "type": "divider"
     }
   ];
 };
@@ -88,14 +88,15 @@ const modalBlock = context => ({
     },
     {
       "type": "input",
-      "block_id": `${context.standup}||${context.standup_run}`,
+      "block_id": `${context.standup}||${context.standup_run}${context.response.length ? ("||" + context.response) : ("")}`,
       "element": {
         "action_id": "answer_input_element",
         "type": "plain_text_input",
         "multiline": true,
+        "initial_value": `${context.response_body}`,
         "placeholder": {
           "type": "plain_text",
-          "text": "Please "
+          "text": "Please answer here"
         }
       },
       "label": {

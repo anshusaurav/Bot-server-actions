@@ -102,6 +102,31 @@ insert_response_one(object: {standup_id: $standup_id, standup_run_id: $standup_r
 }
 }
 `;
+const HASURA_FIND_RESPONSE_OPERATION = `
+query findResponseByUserStandup($standup_id: uuid!, $standup_run_id: uuid!, $slackuser_id: String!) {
+response(where: {slackuser_id: {_eq: $slackuser_id}, standup_id: {_eq: $standup_id}, standup_run_id: {_eq: $standup_run_id}}){
+id
+standup_id
+standup_run_id
+slackuser_id
+body
+}
+}`;
+
+const HASURA_UPDATE_RESPONSE_OPERATION = `
+mutation updateResponseByUser($standup_id: uuid!, $standup_run_id: uuid!, $slackuser_id: String!, $body: String!) {
+update_response(where: {standup_id: {_eq: $standup_id}, slackuser_id: {_eq: $slackuser_id}, standup_run_id: {_eq: $standup_run_id}}, _set: {body: $body}){
+returning{
+  id
+  standup_id
+  standup_run_id
+  slackuser_id
+  body
+  created_at
+  updated_at
+}
+}
+}`
 module.exports = {
   HASURA_FETCH_STANDUP_OPERATION,
   HASURA_INSERT_OPERATION,
@@ -112,5 +137,7 @@ module.exports = {
   HASURA_UPDATE_OPERATION,
   HASURA_INSERT_STANDUPRUN_OPERATION,
   HASURA_DELETE_STANDUPRUN_OPERATION,
-  HASRUA_INSERT_RESPONSE_OPERATION
+  HASRUA_INSERT_RESPONSE_OPERATION,
+  HASURA_FIND_RESPONSE_OPERATION,
+  HASURA_UPDATE_RESPONSE_OPERATION
 };
