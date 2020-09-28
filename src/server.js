@@ -2,16 +2,16 @@ const { createServer } = require("http");
 const express = require("express");
 const bodyParser = require("body-parser");
 const CronJob = require("cron").CronJob;
-const fetch = require("node-fetch");
 const { WebClient } = require("@slack/web-api");
 const token = process.env.SLACK_BOT_TOKEN;
 const web = new WebClient(token);
 const { v4: uuidv4 } = require("uuid");
 const { createMessageAdapter } = require("@slack/interactive-messages");
 const { createEventAdapter } = require("@slack/events-api");
-const { blocks, modalBlock } = require("./slackBlocks");
+const { blocks, modalBlock } = require("./slack/slackBlocks");
+const { executeOperation, timeStamp } = require("./graphql/helpers");
 const {
-  HASURA_FETCH_STANDUP_OPERATION,
+
   HASURA_INSERT_OPERATION,
   HASURA_INSERT_SUBOPERATION,
   HASURA_DELETE_OPERATION,
@@ -21,22 +21,15 @@ const {
   HASURA_INSERT_STANDUPRUN_OPERATION,
   HASURA_DELETE_STANDUPRUN_OPERATION,
   HASRUA_INSERT_RESPONSE_OPERATION,
-  HASURA_FIND_RESPONSE_OPERATION,
   HASURA_UPDATE_RESPONSE_OPERATION
-} = require("./queries");
+} = require("./graphql/queries");
+const { openModal, submitModal } = require("./slack/slackActions")
 const crons = {};
 const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
 // C01C1690AU8 bot-test2 false 1
 
 //UTWLKG02K
-const timeStamp = () => {
-  var date = new Date();
-  var seconds = ("0" + date.getSeconds()).slice(-2);
-  var minutes = ("0" + date.getMinutes()).slice(-2);
-  var hour = ("0" + date.getHours()).slice(-2);
-  return `${hour}:${minutes}:${seconds}`;
-};
 
 const app = express();
 const slackEvents = createEventAdapter(process.env.SLACK_SIGNING_SECRET);
@@ -49,144 +42,14 @@ app.use("/slack/actions", slackInteractions.expressMiddleware());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-slackInteractions.action({ actionId: "open_modal_button" }, async payload => {
-  let arr = payload.actions[0].block_id.split("||");
-  let slackuser_id = payload.user.id;
-  const [standup_id, standup_run_id] = arr;
+slackInteractions.action({ actionId: "open_modal_button" }, openModal);
 
-  try {
-    let res1 = await executeOperation(
-      { standup_id },
-      HASURA_FETCH_STANDUP_OPERATION
-    );
-    if (res1.errors) {
-      return {
-        response_action: "errors",
-        errors: {
-          [payload.actions[0].block_id]:
-            "I can't seem to find this standup in our Database."
-        }
-      };
-    }
-    const { name, message } = res1.data.standup[0];
-    let res2 = await executeOperation(
-      { standup_id, standup_run_id, slackuser_id },
-      HASURA_FIND_RESPONSE_OPERATION
-    );
-
-    if (res2.errors) {
-      return {
-        response_action: "errors",
-        errors: {
-          [payload.actions[0].block_id]:
-            "I can't seem to find this response in our Database."
-        }
-      };
-    }
-
-    let response_body = "",
-      response_id = "";
-
-    if (res2.data.response.length) {
-      response_body = res2.data.response[0].body;
-      response_id = res2.data.response[0].id;
-    }
-
-    let res3 = await web.views.open({
-      trigger_id: payload.trigger_id,
-      view: modalBlock({
-        standup: standup_id,
-        name,
-        message,
-        standup_run: standup_run_id,
-        response_body,
-        response: response_id
-      })
-    });
-  } catch (e) {
-    console.log("Error: ", e);
-  }
-  return {
-    text: "Processing..."
-  };
-});
-
-slackInteractions.viewSubmission("answer_modal_submit", async payload => {
-  const blockData = payload.view.state.values;
-  const keyArr = Object.keys(blockData);
-  let arr = keyArr[0].split("||");
-  const [standup_id, standup_run_id, response_id] = arr;
-  const body = blockData[keyArr[0]].answer_input_element.value;
-  let slackuser_id = payload.user.id;
-
-  try {
-    console.log("response present");
-    if (response_id) {
-      let res1 = await executeOperation(
-        { standup_id, standup_run_id, slackuser_id, body },
-        HASURA_UPDATE_RESPONSE_OPERATION
-      );
-      if (res1.errors) {
-        return {
-          response_action: "errors",
-          errors: {
-            [keyArr[0]]:
-              "The input must have have some answer for the question."
-          }
-        };
-      }
-      return {
-        response_action: "clear"
-      };
-    } else {
-      let res2 = await executeOperation(
-        { standup_id, standup_run_id, slackuser_id, body },
-        HASRUA_INSERT_RESPONSE_OPERATION
-      );
-      if (res2.errors) {
-        return {
-          response_action: "errors",
-          errors: {
-            [keyArr[0]]:
-              "The input must have have some answer for the question."
-          }
-        };
-      }
-      return {
-        response_action: "clear"
-      };
-    }
-  } catch (e) {
-    console.log("Error: ", e);
-  }
-  return {
-    text: "Processing..."
-  };
-});
+slackInteractions.viewSubmission("answer_modal_submit", submitModal);
 
 slackEvents.on("message", event => {
   // console.log(event);
 });
 
-const executeOperation = async (variables, operation) => {
-  const headers = {
-    "x-hasura-admin-secret": process.env.HASURA_GRAPHQL_ADMIN_SECRET
-  };
-
-  const fetchResponse = await fetch(
-    "https://hopeful-squirrel-40.hasura.app/v1/graphql",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        query: operation,
-        variables
-      }),
-      headers
-    }
-  );
-  const data = await fetchResponse.json();
-  return data;
-};
 // Request Handler
 app.post("/insertStandup", async (req, res) => {
   const {
