@@ -136,6 +136,13 @@ returning{
 }
 }
 }`;
+
+const HASURA_UPDATE_STANDUPRUNS_OPERATION = `
+mutation markPreviousRunsInactive($standup_id: uuid!) {
+update_standup_run(where: {standup_id: {_eq: $standup_id}}, _set: {active: false}) {
+affected_rows
+}
+}`
 module.exports = {
   HASURA_FETCH_STANDUP_OPERATION,
   HASURA_INSERT_OPERATION,
@@ -148,5 +155,6 @@ module.exports = {
   HASURA_DELETE_STANDUPRUN_OPERATION,
   HASRUA_INSERT_RESPONSE_OPERATION,
   HASURA_FIND_RESPONSE_OPERATION,
-  HASURA_UPDATE_RESPONSE_OPERATION
+  HASURA_UPDATE_RESPONSE_OPERATION,
+  HASURA_UPDATE_STANDUPRUNS_OPERATION
 };

@@ -108,4 +108,11 @@ const modalBlock = context => ({
     }
   ]
 });
-module.exports = { blocks, modalBlock };
+
+const startMessage = () => [
+  {
+    type: "section",
+    text: { type: "mrkdwn", text: ":dog: Hello!!" }
+  }
+];
+module.exports = { blocks, modalBlock, startMessage };

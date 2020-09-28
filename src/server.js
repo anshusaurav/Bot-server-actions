@@ -3,15 +3,11 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const CronJob = require("cron").CronJob;
 const { WebClient } = require("@slack/web-api");
-const token = process.env.SLACK_BOT_TOKEN;
-const web = new WebClient(token);
-const { v4: uuidv4 } = require("uuid");
 const { createMessageAdapter } = require("@slack/interactive-messages");
 const { createEventAdapter } = require("@slack/events-api");
-const { blocks, modalBlock } = require("./slack/slackBlocks");
+const { blocks, modalBlock, startMessage } = require("./slack/slackBlocks");
 const { executeOperation, timeStamp } = require("./graphql/helpers");
 const {
-
   HASURA_INSERT_OPERATION,
   HASURA_INSERT_SUBOPERATION,
   HASURA_DELETE_OPERATION,
@@ -21,9 +17,10 @@ const {
   HASURA_INSERT_STANDUPRUN_OPERATION,
   HASURA_DELETE_STANDUPRUN_OPERATION,
   HASRUA_INSERT_RESPONSE_OPERATION,
-  HASURA_UPDATE_RESPONSE_OPERATION
+  HASURA_UPDATE_RESPONSE_OPERATION,
+  HASURA_UPDATE_STANDUPRUNS_OPERATION
 } = require("./graphql/queries");
-const { openModal, submitModal } = require("./slack/slackActions")
+const { openModal, submitModal } = require("./slack/slackActions");
 const crons = {};
 const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
@@ -36,6 +33,7 @@ const slackEvents = createEventAdapter(process.env.SLACK_SIGNING_SECRET);
 const slackInteractions = createMessageAdapter(
   process.env.SLACK_SIGNING_SECRET
 );
+const web = new WebClient(process.env.SLACK_BOT_TOKEN);
 
 app.use("/slack/events", slackEvents.expressMiddleware());
 app.use("/slack/actions", slackInteractions.expressMiddleware());
@@ -49,7 +47,20 @@ slackInteractions.viewSubmission("answer_modal_submit", submitModal);
 slackEvents.on("message", event => {
   // console.log(event);
 });
-
+slackEvents.on("app_mention", async event => {
+  console.log("menioned");
+  web.chat
+    .postMessage({
+      blocks: startMessage(),
+      channel: event.channel,
+      text: "Fallback Text"
+    })
+    .then((res, err) => {
+      if (err) {
+        console.log("error: ", err);
+      }
+    });
+});
 // Request Handler
 app.post("/insertStandup", async (req, res) => {
   const {
@@ -94,29 +105,34 @@ app.post("/insertStandup", async (req, res) => {
       );
       executeOperation(
         { standup_id: res1.data.insert_standup_one.id },
-        HASURA_INSERT_STANDUPRUN_OPERATION
-      ).then(insertRes => {
-        web.conversations.members({ channel }).then(response => {
-          let requests = response.members.map(member =>
-            web.users.info({ user: member }).then(userRes => {
-              // console.log(userRes);
-              web.chat.postMessage({
-                blocks: blocks({
-                  name,
-                  message,
-                  username: userRes.user.real_name,
-                  member,
-                  standup: res1.data.insert_standup_one.id,
-                  standup_run: insertRes.data.insert_standup_run_one.id
-                }),
-                channel: member
-              });
-            })
-          );
+        HASURA_UPDATE_STANDUPRUNS_OPERATION
+      ).then(toggleRes => {
+        executeOperation(
+          { standup_id: res1.data.insert_standup_one.id },
+          HASURA_INSERT_STANDUPRUN_OPERATION
+        ).then(insertRes => {
+          web.conversations.members({ channel }).then(response => {
+            let requests = response.members.map(member =>
+              web.users.info({ user: member }).then(userRes => {
+                // console.log(userRes);
+                web.chat.postMessage({
+                  blocks: blocks({
+                    name,
+                    message,
+                    username: userRes.user.real_name,
+                    member,
+                    standup: res1.data.insert_standup_one.id,
+                    standup_run: insertRes.data.insert_standup_run_one.id
+                  }),
+                  channel: member
+                });
+              })
+            );
 
-          Promise.all(requests).then(res =>
-            res.forEach(resp => console.log("ya"))
-          );
+            Promise.all(requests).then(res =>
+              res.forEach(resp => console.log("ya"))
+            );
+          });
         });
       });
     },
@@ -217,13 +233,18 @@ app.post("/updateStandup", async (req, res) => {
   crons[res4.data.insert_cronjob_one.id] = new CronJob(
     cron_text,
     () => {
-      const uuid = uuidv4();
       const stamp = timeStamp();
       console.log(
         `Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`
       );
-      executeOperation({ standup_id }, HASURA_INSERT_STANDUPRUN_OPERATION).then(
-        insertRes => {
+      executeOperation(
+        { standup_id },
+        HASURA_UPDATE_STANDUPRUNS_OPERATION
+      ).then(toggleRes => {
+        executeOperation(
+          { standup_id },
+          HASURA_INSERT_STANDUPRUN_OPERATION
+        ).then(insertRes => {
           web.conversations.members({ channel }).then(response => {
             let requests = response.members.map(member =>
               web.chat.postMessage({
@@ -241,8 +262,8 @@ app.post("/updateStandup", async (req, res) => {
               res.forEach(resp => console.log("ya"))
             );
           });
-        }
-      );
+        });
+      });
     },
     null,
     true,
