@@ -132,29 +132,78 @@ const modalBlockViewAnswer = context => ({
       }
     },
     {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `>${context.response_body.length ? context.response_body : '_No answer submitted_'}`,
-        // emoji: true
-      }
-    },
-    {
-      "type": "context",
-      "elements": [
+      type: "context",
+      elements: [
         {
-          "type": "image",
-          "image_url": "https://api.slack.com/img/blocks/bkb_template_images/notificationsWarningIcon.png",
-          "alt_text": "notifications warning icon"
-        },
-        {
-          "type": "mrkdwn",
-          "text": "This standup run is complete, You can't change or post new answers"
+          type: "mrkdwn",
+          text: "Response Submitted"
         }
       ]
     },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `>${context.response_body.length
+            ? context.response_body
+            : "_No answer submitted_"
+          }`
+      }
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "image",
+          image_url:
+            "https://api.slack.com/img/blocks/bkb_template_images/notificationsWarningIcon.png",
+          alt_text: "notifications warning icon"
+        },
+        {
+          type: "mrkdwn",
+          text:
+            "This standup run is complete, You can't change or post new answers"
+        }
+      ]
+    }
   ]
 });
+
+const standupCreateBlock = context => {
+  return [
+    {
+      type: "divider"
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text:
+          `Hi  ${context.creator_slack_id} :wave: *${context.name}* is now active, well done!\n\n\n I have informed all participants and will will send them a DM with the questions.\t`
+      }
+    },
+    {
+      type: "divider"
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text:
+          `*${context.name} \nCron: ${context.cron_text} \nChannel: ${context.channel}\n`
+      },
+      accessory: {
+        type: "image",
+        image_url:
+          "https://api.slack.com/img/blocks/bkb_template_images/notifications.png",
+        alt_text: "calendar thumbnail"
+      }
+    },
+    {
+      type: "divider"
+    }
+  ];
+};
 
 const startMessage = () => [
   {
@@ -166,5 +215,6 @@ module.exports = {
   blocks,
   modalBlockPostAnswer,
   modalBlockViewAnswer,
-  startMessage
+  startMessage,
+  standupCreateBlock
 };

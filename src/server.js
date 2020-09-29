@@ -2,10 +2,11 @@ const { createServer } = require("http");
 const express = require("express");
 const bodyParser = require("body-parser");
 const CronJob = require("cron").CronJob;
-const { WebClient } = require("@slack/web-api");
 const { createMessageAdapter } = require("@slack/interactive-messages");
 const { createEventAdapter } = require("@slack/events-api");
-const { blocks, modalBlock, startMessage } = require("./slack/slackBlocks");
+const { WebClient } = require("@slack/web-api");
+
+const { blocks, modalBlock, startMessage, standupCreateBlock } = require("./slack/slackBlocks");
 const { executeOperation, timeStamp } = require("./graphql/helpers");
 const {
   HASURA_INSERT_OPERATION,
@@ -18,7 +19,7 @@ const {
   HASURA_DELETE_STANDUPRUN_OPERATION,
   HASRUA_INSERT_RESPONSE_OPERATION,
   HASURA_UPDATE_RESPONSE_OPERATION,
-  HASURA_UPDATE_STANDUPRUNS_OPERATION
+  HASURA_DISBLE_PASTRUNS_OPERATION
 } = require("./graphql/queries");
 const { openModal, submitModal } = require("./slack/slackActions");
 const crons = {};
@@ -53,7 +54,7 @@ slackEvents.on("app_mention", async event => {
     .postMessage({
       blocks: startMessage(),
       channel: event.channel,
-      text: "Fallback Text"
+      text: ":wave: Hello"
     })
     .then((res, err) => {
       if (err) {
@@ -103,10 +104,11 @@ app.post("/insertStandup", async (req, res) => {
       console.log(
         `Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`
       );
+      //HASURA_DISBLE_PASTRUNS_OPERATION
       executeOperation(
         { standup_id: res1.data.insert_standup_one.id },
-        HASURA_UPDATE_STANDUPRUNS_OPERATION
-      ).then(toggleRes => {
+        HASURA_DISBLE_PASTRUNS_OPERATION
+      ).then(disableRes => {
         executeOperation(
           { standup_id: res1.data.insert_standup_one.id },
           HASURA_INSERT_STANDUPRUN_OPERATION
@@ -140,6 +142,17 @@ app.post("/insertStandup", async (req, res) => {
     true,
     "Asia/Kolkata"
   );
+  //send notification to creator of standup
+  web.chat.postMessage({
+    blocks: standupCreateBlock({
+      creator_slack_id,
+      name,
+      cron_text,
+      channel,
+    }),
+    channel: creator_slack_id
+  });
+  //send notification to members part of channel
   return res.json({
     ...res1.data.insert_standup_one
   });
@@ -239,31 +252,30 @@ app.post("/updateStandup", async (req, res) => {
       );
       executeOperation(
         { standup_id },
-        HASURA_UPDATE_STANDUPRUNS_OPERATION
-      ).then(toggleRes => {
-        executeOperation(
-          { standup_id },
-          HASURA_INSERT_STANDUPRUN_OPERATION
-        ).then(insertRes => {
-          web.conversations.members({ channel }).then(response => {
-            let requests = response.members.map(member =>
-              web.chat.postMessage({
-                blocks: blocks({
-                  name,
-                  message,
-                  member,
-                  standup: standup_id,
-                  standup_run: insertRes.data.insert_standup_run_one.id
-                }),
-                channel: member
-              })
-            );
-            Promise.all(requests).then(res =>
-              res.forEach(resp => console.log("ya"))
-            );
-          });
-        });
-      });
+        HASURA_DISBLE_PASTRUNS_OPERATION
+      ).then(disableRes => {
+        executeOperation({ standup_id }, HASURA_INSERT_STANDUPRUN_OPERATION).then(
+          insertRes => {
+            web.conversations.members({ channel }).then(response => {
+              let requests = response.members.map(member =>
+                web.chat.postMessage({
+                  blocks: blocks({
+                    name,
+                    message,
+                    member,
+                    standup: standup_id,
+                    standup_run: insertRes.data.insert_standup_run_one.id
+                  }),
+                  channel: member
+                })
+              );
+              Promise.all(requests).then(res =>
+                res.forEach(resp => console.log("ya"))
+              );
+            });
+          }
+        );
+      })
     },
     null,
     true,
