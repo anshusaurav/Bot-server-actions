@@ -70,6 +70,7 @@ const openModal = async payload => {
         }
 
         let active = res3.data.standup_run_by_pk.active;
+        // console.log('Active: ', active);
         if (active) {
             let res4 = await web.views.open({
                 trigger_id: payload.trigger_id,
@@ -79,7 +80,7 @@ const openModal = async payload => {
                     message,
                     standup_run: standup_run_id,
                     response_body,
-                    response: response_id
+                    response: response_id,
                 })
             });
         } else {

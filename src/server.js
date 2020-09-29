@@ -6,7 +6,14 @@ const { createMessageAdapter } = require("@slack/interactive-messages");
 const { createEventAdapter } = require("@slack/events-api");
 const { WebClient } = require("@slack/web-api");
 
-const { blocks, modalBlock, startMessage, standupCreateBlock } = require("./slack/slackBlocks");
+const {
+  blocks,
+  modalBlock,
+  startMessage,
+  standupCreateBlock,
+  standupNotifyBlock,
+  channelNotifyBlock
+} = require("./slack/slackBlocks");
 const { executeOperation, timeStamp } = require("./graphql/helpers");
 const {
   HASURA_INSERT_OPERATION,
@@ -148,11 +155,45 @@ app.post("/insertStandup", async (req, res) => {
       creator_slack_id,
       name,
       cron_text,
-      channel,
+      channel
     }),
     channel: creator_slack_id
   });
   //send notification to members part of channel
+
+  web.conversations.members({ channel }).then(response => {
+    let requests = response.members.map(member =>
+      web.users.info({ user: member }).then(userRes => {
+        // console.log(userRes);
+        // console.log(userRes.user);
+        if(creator_slack_id !== member)
+        web.chat.postMessage({
+          blocks: standupNotifyBlock({
+            name,
+            username: userRes.user.real_name,
+            creator_slack_id,
+            cron_text,
+            channel
+          }),
+          channel: member
+        });
+      })
+    );
+    
+    //send channel message informing about standup
+    web.chat.postMessage({
+          blocks: channelNotifyBlock({
+            name,
+            creator_slack_id,
+            cron_text,
+            channel
+          }),
+          channel
+        });
+    
+    
+    Promise.all(requests).then(res => res.forEach(resp => console.log("ya")));
+  });
   return res.json({
     ...res1.data.insert_standup_one
   });
@@ -250,12 +291,12 @@ app.post("/updateStandup", async (req, res) => {
       console.log(
         `Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`
       );
-      executeOperation(
-        { standup_id },
-        HASURA_DISBLE_PASTRUNS_OPERATION
-      ).then(disableRes => {
-        executeOperation({ standup_id }, HASURA_INSERT_STANDUPRUN_OPERATION).then(
-          insertRes => {
+      executeOperation({ standup_id }, HASURA_DISBLE_PASTRUNS_OPERATION).then(
+        disableRes => {
+          executeOperation(
+            { standup_id },
+            HASURA_INSERT_STANDUPRUN_OPERATION
+          ).then(insertRes => {
             web.conversations.members({ channel }).then(response => {
               let requests = response.members.map(member =>
                 web.chat.postMessage({
@@ -273,9 +314,9 @@ app.post("/updateStandup", async (req, res) => {
                 res.forEach(resp => console.log("ya"))
               );
             });
-          }
-        );
-      })
+          });
+        }
+      );
     },
     null,
     true,
@@ -287,6 +328,6 @@ app.post("/updateStandup", async (req, res) => {
   });
 });
 
-app.listen(PORT, function () {
+app.listen(PORT, function() {
   console.log("Server is listening on port " + PORT);
 });
