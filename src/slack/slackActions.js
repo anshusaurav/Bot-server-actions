@@ -2,14 +2,14 @@ const {
     HASURA_FETCH_STANDUP_OPERATION,
     HASURA_FIND_RESPONSE_OPERATION,
     HASURA_UPDATE_RESPONSE_OPERATION,
-    HASRUA_INSERT_RESPONSE_OPERATION
+    HASRUA_INSERT_RESPONSE_OPERATION,
+    HASURA_FIND_RUN_OPERATION
 } = require("./../graphql/queries");
 const { executeOperation } = require("./../graphql/helpers");
 const { WebClient } = require("@slack/web-api");
 const token = process.env.SLACK_BOT_TOKEN;
 const web = new WebClient(token);
-const { modalBlock } = require("./slackBlocks");
-
+const { modalBlockPostAnswer, modalBlockViewAnswer } = require("./slackBlocks");
 
 const openModal = async payload => {
     let arr = payload.actions[0].block_id.split("||");
@@ -54,17 +54,46 @@ const openModal = async payload => {
             response_id = res2.data.response[0].id;
         }
 
-        let res3 = await web.views.open({
-            trigger_id: payload.trigger_id,
-            view: modalBlock({
-                standup: standup_id,
-                name,
-                message,
-                standup_run: standup_run_id,
-                response_body,
-                response: response_id
-            })
-        });
+        let res3 = await executeOperation(
+            { standup_run_id },
+            HASURA_FIND_RUN_OPERATION
+        );
+
+        if (res3.errors) {
+            return {
+                response_action: "errors",
+                errors: {
+                    [payload.actions[0].block_id]:
+                        "I can't seem to find this standup run in our Database."
+                }
+            };
+        }
+
+        let active = res3.data.standup_run_by_pk.active;
+        if (active) {
+            let res4 = await web.views.open({
+                trigger_id: payload.trigger_id,
+                view: modalBlockPostAnswer({
+                    standup: standup_id,
+                    name,
+                    message,
+                    standup_run: standup_run_id,
+                    response_body,
+                    response: response_id
+                })
+            });
+        } else {
+            let res4 = await web.views.open({
+                trigger_id: payload.trigger_id,
+                view: modalBlockViewAnswer({
+                    standup: standup_id,
+                    name,
+                    message,
+                    standup_run: standup_run_id,
+                    response_body
+                })
+            });
+        }
     } catch (e) {
         console.log("Error: ", e);
     }
@@ -73,7 +102,7 @@ const openModal = async payload => {
     };
 };
 
-const submitModal = async (payload) => {
+const submitModal = async payload => {
     const blockData = payload.view.state.values;
     const keyArr = Object.keys(blockData);
     let arr = keyArr[0].split("||");
@@ -125,4 +154,4 @@ const submitModal = async (payload) => {
         text: "Processing..."
     };
 };
-module.exports = { openModal, submitModal }
+module.exports = { openModal, submitModal };

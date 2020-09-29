@@ -137,12 +137,25 @@ returning{
 }
 }`;
 
-const HASURA_UPDATE_STANDUPRUNS_OPERATION = `
-mutation markPreviousRunsInactive($standup_id: uuid!) {
-update_standup_run(where: {standup_id: {_eq: $standup_id}}, _set: {active: false}) {
+const HASURA_DISBLE_PASTRUNS_OPERATION = `
+mutation disablePastRuns($standup_id: uuid!) {
+update_standup_run(where: {standup_id: {_eq: $standup_id}}, _set: {active: false}){
 affected_rows
 }
-}`
+}
+`
+const HASURA_FIND_RUN_OPERATION = `
+query getStandUpRun($standup_run_id: uuid!) {
+standup_run_by_pk(id: $standup_run_id){
+id
+standup_id
+active
+created_at
+updated_at
+}
+}
+`
+
 module.exports = {
   HASURA_FETCH_STANDUP_OPERATION,
   HASURA_INSERT_OPERATION,
@@ -156,5 +169,6 @@ module.exports = {
   HASRUA_INSERT_RESPONSE_OPERATION,
   HASURA_FIND_RESPONSE_OPERATION,
   HASURA_UPDATE_RESPONSE_OPERATION,
-  HASURA_UPDATE_STANDUPRUNS_OPERATION
+  HASURA_DISBLE_PASTRUNS_OPERATION,
+  HASURA_FIND_RUN_OPERATION
 };
