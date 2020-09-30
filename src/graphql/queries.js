@@ -7,7 +7,7 @@ const HASURA_FETCH_STANDUP_OPERATION = `query getStandup($standup_id: uuid!){
 }
 `;
 
-const HASURA_INSERT_OPERATION = `
+const HASURA_INSERT_STANDUP_OPERATION = `
 mutation insertStandup($creator_slack_id:String!, $name: String!, $cron_text: String!, $channel: String!, $message: String! ) {
 insert_standup_one(
   object: {
@@ -24,13 +24,14 @@ insert_standup_one(
   channel
   creator_slack_id
   paused
+  archived
   created_at
   updated_at
 }
 }
 `;
 
-const HASURA_INSERT_SUBOPERATION = `
+const HASURA_INSERT_CRONJOB_OPERATION = `
 mutation insertCronjob($standup_id: uuid!){
 insert_cronjob_one(object: {standup_id:$standup_id}){
   id,
@@ -41,7 +42,7 @@ insert_cronjob_one(object: {standup_id:$standup_id}){
 }
 `;
 
-const HASURA_DELETE_OPERATION = ` 
+const HASURA_DELETE_STANDUP_OPERATION = ` 
 mutation deleteStandup($standup_id: uuid!) { 
 delete_standup(where: {id: {_eq: $standup_id}}){
   affected_rows
@@ -49,7 +50,7 @@ delete_standup(where: {id: {_eq: $standup_id}}){
 }
 `;
 
-const HASURA_DELETE_SUBOPERATION = `  
+const HASURA_DELETE_CRONJOB_OPERATION = `  
 mutation deleteCronjob($standup_id: uuid!){ 
 delete_cronjob(where: {standup_id: {_eq: $standup_id}}){
   affected_rows
@@ -57,7 +58,7 @@ delete_cronjob(where: {standup_id: {_eq: $standup_id}}){
 }
 `;
 
-const HASURA_CRONQUERY_OPERATION = `
+const HASURA_FETCH_CRONJOB_OPERATION = `
 query getCronJob($standup_id: uuid!){
 cronjob(where: {standup_id: {_eq: $standup_id}}) {
   id
@@ -68,7 +69,7 @@ cronjob(where: {standup_id: {_eq: $standup_id}}) {
 }
 `;
 
-const HASURA_UPDATE_OPERATION = `
+const HASURA_UPDATE_STANDUP_OPERATION = `
 mutation updateStandup($standup_id:uuid!, $channel: String!, $cron_text: String!, $message: String!, $name: String!  ) {
 update_standup_by_pk(pk_columns: {id: $standup_id}, _set: {channel: $channel, cron_text: $cron_text, message: $message, name: $name}) {
   id
@@ -192,14 +193,27 @@ updated_at
 }
 }
 `;
+
+const HASURA_INSERT_QUESTION_OPERATION = `
+mutation insertQuestion($body: String!, $standup_id:uuid!) {
+insert_question_one(object: {body: $body, standup_id: $standup_id}){
+id
+standup_id
+archived
+body
+created_at
+updated_at
+}
+}
+`;
 module.exports = {
   HASURA_FETCH_STANDUP_OPERATION,
-  HASURA_INSERT_OPERATION,
-  HASURA_INSERT_SUBOPERATION,
-  HASURA_DELETE_OPERATION,
-  HASURA_DELETE_SUBOPERATION,
-  HASURA_CRONQUERY_OPERATION,
-  HASURA_UPDATE_OPERATION,
+  HASURA_INSERT_STANDUP_OPERATION,
+  HASURA_INSERT_CRONJOB_OPERATION,
+  HASURA_DELETE_STANDUP_OPERATION,
+  HASURA_DELETE_CRONJOB_OPERATION,
+  HASURA_FETCH_CRONJOB_OPERATION,
+  HASURA_UPDATE_STANDUP_OPERATION,
   HASURA_INSERT_STANDUPRUN_OPERATION,
   HASURA_DELETE_STANDUPRUN_OPERATION,
   HASRUA_INSERT_RESPONSE_OPERATION,
@@ -208,5 +222,6 @@ module.exports = {
   HASURA_DISBLE_PASTRUNS_OPERATION,
   HASURA_FIND_RUN_OPERATION,
   HASURA_PAUSE_STANDUP_OPERATION,
-  HASURA_UNPAUSE_STANDUP_OPERATION
+  HASURA_UNPAUSE_STANDUP_OPERATION,
+  HASURA_INSERT_QUESTION_OPERATION
 };

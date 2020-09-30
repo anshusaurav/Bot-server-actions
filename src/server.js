@@ -15,17 +15,18 @@ const {
 } = require("./slack/slackBlocks");
 const { executeOperation, timeStamp } = require("./graphql/helpers");
 const {
-  HASURA_INSERT_OPERATION,
-  HASURA_INSERT_SUBOPERATION,
-  HASURA_DELETE_OPERATION,
-  HASURA_DELETE_SUBOPERATION,
-  HASURA_CRONQUERY_OPERATION,
-  HASURA_UPDATE_OPERATION,
+  HASURA_INSERT_STANDUP_OPERATION,
+  HASURA_INSERT_CRONJOB_OPERATION,
+  HASURA_DELETE_STANDUP_OPERATION,
+  HASURA_DELETE_CRONJOB_OPERATION,
+  HASURA_FETCH_CRONJOB_OPERATION,
+  HASURA_UPDATE_STANDUP_OPERATION,
   HASURA_INSERT_STANDUPRUN_OPERATION,
   HASURA_DELETE_STANDUPRUN_OPERATION,
   HASURA_DISBLE_PASTRUNS_OPERATION,
   HASURA_PAUSE_STANDUP_OPERATION,
-  HASURA_UNPAUSE_STANDUP_OPERATION
+  HASURA_UNPAUSE_STANDUP_OPERATION,
+  HASURA_INSERT_QUESTION_OPERATION
 } = require("./graphql/queries");
 const { openModal, submitModal } = require("./slack/slackActions");
 const crons = {};
@@ -54,6 +55,7 @@ slackEvents.on("message", event => {
 });
 slackEvents.on("app_mention", async event => {
   console.log("menioned");
+
   web.chat
     .postMessage({
       blocks: startMessage(),
@@ -73,8 +75,10 @@ app.post("/insertStandup", async (req, res) => {
     name,
     cron_text,
     channel,
-    message
+    message,
+    questions
   } = req.body.input;
+  console.log(questions);
   let res1 = await executeOperation(
     {
       creator_slack_id,
@@ -83,17 +87,32 @@ app.post("/insertStandup", async (req, res) => {
       channel,
       message
     },
-    HASURA_INSERT_OPERATION
+    HASURA_INSERT_STANDUP_OPERATION
   );
+
   if (res1.errors) {
     return res.status(400).json(res1.errors[0]);
   }
-
+  let questionRequests = questions.map(question =>{
+    return executeOperation(
+      {
+        standup_id: res1.data.insert_standup_one.id,
+        body: question
+      },
+      HASURA_INSERT_QUESTION_OPERATION
+    )
+  });
+  
+  let questionRes = await Promise.all(questionRequests);
+  questionRes.map( r => console.log(r.errors));
+  console.log(questionRes);
+  
+  
   let res2 = await executeOperation(
     {
       standup_id: res1.data.insert_standup_one.id
     },
-    HASURA_INSERT_SUBOPERATION
+    HASURA_INSERT_CRONJOB_OPERATION
   );
 
   if (res2.errors) {
@@ -120,7 +139,7 @@ app.post("/insertStandup", async (req, res) => {
             let requests = response.members.map(member =>
               web.users.info({ user: member }).then(userRes => {
                 // console.log(userRes);
-                web.chat.postMessage({
+                return web.chat.postMessage({
                   blocks: blocks({
                     name,
                     message,
@@ -128,6 +147,7 @@ app.post("/insertStandup", async (req, res) => {
                     member,
                     standup: res1.data.insert_standup_one.id,
                     standup_run: insertRes.data.insert_standup_run_one.id
+                    
                   }),
                   channel: member
                 });
@@ -217,7 +237,7 @@ app.post("/deleteStandup", async (req, res) => {
   }
   const res3 = await executeOperation(
     { standup_id },
-    HASURA_CRONQUERY_OPERATION
+    HASURA_FETCH_CRONJOB_OPERATION
   );
 
   if (res3.errors) {
@@ -230,14 +250,17 @@ app.post("/deleteStandup", async (req, res) => {
   }
   const res2 = await executeOperation(
     { standup_id },
-    HASURA_DELETE_SUBOPERATION
+    HASURA_DELETE_CRONJOB_OPERATION
   );
 
   if (res2.errors) {
     return res.status(400).json(res2.errors[0]);
   }
 
-  const res1 = await executeOperation({ standup_id }, HASURA_DELETE_OPERATION);
+  const res1 = await executeOperation(
+    { standup_id },
+    HASURA_DELETE_STANDUP_OPERATION
+  );
 
   if (res1.errors) {
     return res.status(400).json(res1.errors[0]);
@@ -254,7 +277,7 @@ app.post("/updateStandup", async (req, res) => {
 
   const res3 = await executeOperation(
     { standup_id, channel, cron_text, message, name },
-    HASURA_UPDATE_OPERATION
+    HASURA_UPDATE_STANDUP_OPERATION
   );
   if (res3.errors) {
     return res.status(400).json(res3.errors[0]);
@@ -262,7 +285,7 @@ app.post("/updateStandup", async (req, res) => {
 
   const res1 = await executeOperation(
     { standup_id },
-    HASURA_CRONQUERY_OPERATION
+    HASURA_FETCH_CRONJOB_OPERATION
   );
   if (res1.errors) {
     return res.status(400).json(res1.errors[0]);
@@ -275,14 +298,17 @@ app.post("/updateStandup", async (req, res) => {
   }
   const res2 = await executeOperation(
     { standup_id },
-    HASURA_DELETE_SUBOPERATION
+    HASURA_DELETE_CRONJOB_OPERATION
   );
 
   if (res2.errors) {
     return res.status(400).json(res2.errors[0]);
   }
 
-  let res4 = await executeOperation({ standup_id }, HASURA_INSERT_SUBOPERATION);
+  let res4 = await executeOperation(
+    { standup_id },
+    HASURA_INSERT_CRONJOB_OPERATION
+  );
 
   if (res4.errors) {
     return res.status(400).json(res4.errors[0]);
@@ -315,8 +341,9 @@ app.post("/updateStandup", async (req, res) => {
                   channel: member
                 })
               );
+              console.log(requests);
               Promise.all(requests).then(res =>
-                res.forEach(resp => console.log("ya"))
+                res.forEach(resp => console.log("Res ", resp))
               );
             });
           });
@@ -345,7 +372,7 @@ app.post("/pauseStandup", async (req, res) => {
   }
   const res2 = await executeOperation(
     { standup_id },
-    HASURA_CRONQUERY_OPERATION
+    HASURA_FETCH_CRONJOB_OPERATION
   );
   if (res2.errors) {
     return res.status(400).json(res2.errors[0]);
@@ -375,7 +402,7 @@ app.post("/unpauseStandup", async (req, res) => {
 
   const res2 = await executeOperation(
     { standup_id },
-    HASURA_CRONQUERY_OPERATION
+    HASURA_FETCH_CRONJOB_OPERATION
   );
   if (res2.errors) {
     return res.status(400).json(res2.errors[0]);
@@ -390,6 +417,6 @@ app.post("/unpauseStandup", async (req, res) => {
     ...res1.data.update_standup_by_pk
   });
 });
-app.listen(PORT, function () {
+app.listen(PORT, function() {
   console.log("Server is listening on port " + PORT);
 });
