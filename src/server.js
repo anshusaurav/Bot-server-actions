@@ -8,7 +8,6 @@ const { WebClient } = require("@slack/web-api");
 
 const {
   blocks,
-  modalBlock,
   startMessage,
   standupCreateBlock,
   standupNotifyBlock,
@@ -24,18 +23,16 @@ const {
   HASURA_UPDATE_OPERATION,
   HASURA_INSERT_STANDUPRUN_OPERATION,
   HASURA_DELETE_STANDUPRUN_OPERATION,
-  HASRUA_INSERT_RESPONSE_OPERATION,
-  HASURA_UPDATE_RESPONSE_OPERATION,
-  HASURA_DISBLE_PASTRUNS_OPERATION
+  HASURA_DISBLE_PASTRUNS_OPERATION,
+  HASURA_PAUSE_STANDUP_OPERATION,
+  HASURA_UNPAUSE_STANDUP_OPERATION
 } = require("./graphql/queries");
 const { openModal, submitModal } = require("./slack/slackActions");
 const crons = {};
 const PORT = process.env.PORT || 3000;
 // C01B8HWFN49 bot-test false 7
 // C01C1690AU8 bot-test2 false 1
-
 //UTWLKG02K
-
 const app = express();
 const slackEvents = createEventAdapter(process.env.SLACK_SIGNING_SECRET);
 const slackInteractions = createMessageAdapter(
@@ -103,7 +100,7 @@ app.post("/insertStandup", async (req, res) => {
     return res.status(400).json(res2.errors[0]);
   }
   console.log("Cronjob added with id:" + res2.data.insert_cronjob_one.id);
-  // success
+  // scheduling cron job as per cron provided
   crons[res2.data.insert_cronjob_one.id] = new CronJob(
     cron_text,
     () => {
@@ -111,7 +108,6 @@ app.post("/insertStandup", async (req, res) => {
       console.log(
         `Time: ${stamp} Standup :{name: ${name}, channel: ${channel},  message: ${message}`
       );
-      //HASURA_DISBLE_PASTRUNS_OPERATION
       executeOperation(
         { standup_id: res1.data.insert_standup_one.id },
         HASURA_DISBLE_PASTRUNS_OPERATION
@@ -150,48 +146,57 @@ app.post("/insertStandup", async (req, res) => {
     "Asia/Kolkata"
   );
   //send notification to creator of standup
-  web.chat.postMessage({
-    blocks: standupCreateBlock({
-      creator_slack_id,
-      name,
-      cron_text,
-      channel
-    }),
-    channel: creator_slack_id
+  web.users.info({ user: creator_slack_id }).then(creatorRes => {
+    web.conversations.info({ channel }).then(channelRes => {
+      web.chat.postMessage({
+        blocks: standupCreateBlock({
+          creator_slack_id: creatorRes.user.real_name,
+          name,
+          cron_text,
+          channel: channelRes.channel.name
+        }),
+        channel: creator_slack_id
+      });
+    });
   });
-  //send notification to members part of channel
 
+  //send notification in im to all channel members
   web.conversations.members({ channel }).then(response => {
     let requests = response.members.map(member =>
       web.users.info({ user: member }).then(userRes => {
-        // console.log(userRes);
-        // console.log(userRes.user);
-        if(creator_slack_id !== member)
-        web.chat.postMessage({
-          blocks: standupNotifyBlock({
-            name,
-            username: userRes.user.real_name,
-            creator_slack_id,
-            cron_text,
-            channel
-          }),
-          channel: member
+        web.conversations.info({ channel }).then(channelRes => {
+          web.users.info({ user: creator_slack_id }).then(creatorRes => {
+            if (creator_slack_id !== member)
+              web.chat.postMessage({
+                blocks: standupNotifyBlock({
+                  name,
+                  username: userRes.user.name,
+                  creator_slack_id: creatorRes.user.name,
+                  cron_text,
+                  channel: channelRes.channel.name
+                }),
+                channel: member
+              });
+          });
         });
       })
     );
-    
+
     //send channel message informing about standup
-    web.chat.postMessage({
+    web.conversations.info({ channel }).then(channelRes => {
+      web.users.info({ user: creator_slack_id }).then(creatorRes => {
+        web.chat.postMessage({
           blocks: channelNotifyBlock({
             name,
-            creator_slack_id,
+            creator_slack_id: creatorRes.user.name,
             cron_text,
-            channel
+            channel: channelRes.channel.name
           }),
           channel
         });
-    
-    
+      });
+    });
+
     Promise.all(requests).then(res => res.forEach(resp => console.log("ya")));
   });
   return res.json({
@@ -263,7 +268,7 @@ app.post("/updateStandup", async (req, res) => {
     return res.status(400).json(res1.errors[0]);
   }
 
-  console.log(res1.data);
+  // console.log(res1.data);
   if (res1.data.cronjob.length > 0) {
     crons[res1.data.cronjob[0].id].stop();
     console.log("Cronjob removed with id:" + res1.data.cronjob[0].id);
@@ -328,6 +333,63 @@ app.post("/updateStandup", async (req, res) => {
   });
 });
 
-app.listen(PORT, function() {
+app.post("/pauseStandup", async (req, res) => {
+  const { standup_id } = req.body.input;
+
+  let res1 = await executeOperation(
+    { standup_id },
+    HASURA_PAUSE_STANDUP_OPERATION
+  );
+  if (res1.errors) {
+    return res.status(400).json(res1.errors[0]);
+  }
+  const res2 = await executeOperation(
+    { standup_id },
+    HASURA_CRONQUERY_OPERATION
+  );
+  if (res2.errors) {
+    return res.status(400).json(res2.errors[0]);
+  }
+
+  // console.log(res1.data);
+  if (res2.data.cronjob.length > 0) {
+    crons[res2.data.cronjob[0].id].stop();
+    console.log("Cronjob paused with id:" + res2.data.cronjob[0].id);
+  }
+
+  return res.json({
+    ...res1.data.update_standup_by_pk
+  });
+});
+
+app.post("/unpauseStandup", async (req, res) => {
+  const { standup_id } = req.body.input;
+
+  let res1 = await executeOperation(
+    { standup_id },
+    HASURA_UNPAUSE_STANDUP_OPERATION
+  );
+  if (res1.errors) {
+    return res.status(400).json(res1.errors[0]);
+  }
+
+  const res2 = await executeOperation(
+    { standup_id },
+    HASURA_CRONQUERY_OPERATION
+  );
+  if (res2.errors) {
+    return res.status(400).json(res2.errors[0]);
+  }
+
+  // console.log(res1.data);
+  if (res2.data.cronjob.length > 0) {
+    crons[res2.data.cronjob[0].id].start();
+    console.log("Cronjob unpaused with id:" + res2.data.cronjob[0].id);
+  }
+  return res.json({
+    ...res1.data.update_standup_by_pk
+  });
+});
+app.listen(PORT, function () {
   console.log("Server is listening on port " + PORT);
 });

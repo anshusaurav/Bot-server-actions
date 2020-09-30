@@ -23,6 +23,7 @@ insert_standup_one(
   cron_text
   channel
   creator_slack_id
+  paused
   created_at
   updated_at
 }
@@ -71,11 +72,14 @@ const HASURA_UPDATE_OPERATION = `
 mutation updateStandup($standup_id:uuid!, $channel: String!, $cron_text: String!, $message: String!, $name: String!  ) {
 update_standup_by_pk(pk_columns: {id: $standup_id}, _set: {channel: $channel, cron_text: $cron_text, message: $message, name: $name}) {
   id
+  creator_slack_id
   channel
   cron_text
   message
   name
+  paused
   updated_at
+  created_at
 }
 }
 `;
@@ -119,6 +123,8 @@ standup_id
 standup_run_id
 slackuser_id
 body
+created_at
+updated_at
 }
 }`;
 
@@ -143,7 +149,7 @@ update_standup_run(where: {standup_id: {_eq: $standup_id}}, _set: {active: false
 affected_rows
 }
 }
-`
+`;
 const HASURA_FIND_RUN_OPERATION = `
 query getStandUpRun($standup_run_id: uuid!) {
 standup_run_by_pk(id: $standup_run_id){
@@ -154,8 +160,38 @@ created_at
 updated_at
 }
 }
-`
+`;
+const HASURA_PAUSE_STANDUP_OPERATION = `
+mutation pauseStandup($standup_id: uuid!) { 
+update_standup_by_pk(pk_columns: {id: $standup_id}, _set: {paused: true}){
+id
+creator_slack_id
+cron_text
+channel
+name
+message
+paused
+created_at
+updated_at
+}
+}
+`;
 
+const HASURA_UNPAUSE_STANDUP_OPERATION = `
+mutation pauseStandup($standup_id: uuid!) { 
+update_standup_by_pk(pk_columns: {id: $standup_id}, _set: {paused: false}){
+id
+creator_slack_id
+cron_text
+channel
+name
+message
+paused
+created_at
+updated_at
+}
+}
+`;
 module.exports = {
   HASURA_FETCH_STANDUP_OPERATION,
   HASURA_INSERT_OPERATION,
@@ -170,5 +206,7 @@ module.exports = {
   HASURA_FIND_RESPONSE_OPERATION,
   HASURA_UPDATE_RESPONSE_OPERATION,
   HASURA_DISBLE_PASTRUNS_OPERATION,
-  HASURA_FIND_RUN_OPERATION
+  HASURA_FIND_RUN_OPERATION,
+  HASURA_PAUSE_STANDUP_OPERATION,
+  HASURA_UNPAUSE_STANDUP_OPERATION
 };

@@ -205,9 +205,9 @@ const standupNotifyBlock = context => {
       text: {
         type: "mrkdwn",
         text: `${randomGreeting()}!! ${context.username
-          }:wave: I'm geekbot, \n ${context.creator_slack_id
-          } created the standup *${context.name
-          }* and I am here to help get you started.\n I will send you a DM at assigned time ${context.cron_text
+          }:wave: I'm geekbot, @${context.creator_slack_id
+          } has created the standup *${context.name
+          }* in Slack and I am here to help get you started.\n I will send you a DM at assigned time ${context.cron_text
           } \n`
       }
     },
@@ -244,9 +244,9 @@ const channelNotifyBlock = context => {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `Hi there :wave: I'm geekbot, and I will be facilitating *${context.name
-          }* (created by @${context.creator_slack_id
-          }) in Slack.\n I will send you a DM at assigned time ${context.cron_text
+        text: `Hi there :wave: I'm pupbot, and I will be facilitating *${context.name
+          }* created by *@${context.creator_slack_id
+          }* in Slack.\n I will send you a DM at assigned time ${context.cron_text
           } \n`
       },
       accessory: {
